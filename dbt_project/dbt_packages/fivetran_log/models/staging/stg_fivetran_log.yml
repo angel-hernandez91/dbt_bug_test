@@ -1,0 +1,253 @@
+version: 2
+
+models:
+  - name: stg_fivetran_log__active_volume
+    description: >
+      Table of **monthly active row (MAR)** measurements made by table per date. 
+      Each measurement is calculated cumulatively for the month. 
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - active_volume_id
+            - destination_id
+    columns: 
+      - name: active_volume_id
+        description: System-generated destination-unique ID of the active volume measurement.
+      - name: connector_name
+        description: The *name* of the connector being measured. Note - this is erroneously named and will be fixed soon by Fivetran.
+      - name: destination_id
+        description: Foreign key referencing the `destination` whose table is being measured.
+      - name: measured_at
+        description: Timestamp of when the MAR measurement was made.
+      - name: monthly_active_rows
+        description: The number of active rows cumulatively synced this month for this table.
+      - name: schema_name
+        description: The name of the connector's schema that houses the measured table.
+      - name: table_name
+        description: The name of the table whose MAR was measured.
+
+  - name: stg_fivetran_log__connector
+    description: >
+      Table of all connectors loading data into warehouses. Note that deleted connectors 
+      are not removed, but can be identified by having an older _fivetran_synced field relative 
+      to other connectors.
+    tests:
+      # This combo will be used to join with other tables lacking `connector_id`
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - connector_name
+            - destination_id
+    columns:
+      - name: connector_id
+        description: System generated destination-unique ID of the connector.
+      - name: connecting_user_id
+        description: Foreign key referencing the `user` who set up the connection.
+      - name: connector_name
+        description: Individual name of the connector. Note that this could be different from the `active_volume.schema_name`.
+      - name: connector_type
+        description: The kind of connector (ie google sheets, webhooks).
+      - name: destination_id
+        description: Foreign key referencing the `destination` warehouse that the connector data is loaded into.
+      - name: is_paused
+        description: Boolean that is true if the connector's sync is currently paused.
+      - name: set_up_at
+        description: Timestamp of when the connection was set up.
+
+  - name: stg_fivetran_log__credits_used
+    description: Table of the credits used by the customer per month for each destination.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - measured_month
+            - destination_id
+    columns:
+      - name: destination_id
+        description: Foreign key referencing the `destination` warehouse that was used. 
+      - name: measured_month
+        description: The month (yyyy-mm) of the usage activity.
+      - name: credits_spent
+        description: The total credits used by the destination for the given month.
+
+  - name: stg_fivetran_log__usage_cost
+    description: Table of the amount spent by the customer per month for each destination. Amount is represented in USD.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - measured_month
+            - destination_id
+    columns:
+      - name: destination_id
+        description: Foreign key referencing the `destination` warehouse that was used. 
+      - name: measured_month
+        description: The month (yyyy-mm) of the usage activity.
+      - name: dollars_spent
+        description: The total amount spent by the destination for the given month.
+
+  - name: stg_fivetran_log__destination
+    description: Table of the destinations that have data loaded into them. For each declared source, there will be just one record.
+    columns:
+      - name: destination_id
+        description: Unique ID of the destination warehouse
+        tests:
+          - unique
+          - not_null
+      - name: account_id
+        description: Foreign key referencing the fivetran `account` associated with the destination.
+      - name: created_at
+        description: Timestamp of when the destination was set up.
+      - name: destination_name
+        description: Name of the destination warehouse.
+      - name: region
+        description: Geographical region of the destination.
+
+  - name: stg_fivetran_log__log
+    description: > 
+      Table of logged events related to data syncs. More info on error logs 
+      [here](https://fivetran.com/docs/logs/fivetran-log#errorlogs)
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - log_id
+            - created_at
+    columns: 
+      - name: log_id
+        description: >
+          Contains either `connector_name` (for app/api logs), `transformation_id` (for transformation logs), 
+          or the value `"system"` (for system generated logs).
+      - name: created_at
+        description: Timestamp of when the event was logged.
+      - name: connector_id
+        description: The name of the `connector` that the logged event pertains to.
+      - name: event_type
+        description: The umbrella event type. Events can be classified as a warning, an error, or just an information log.
+      - name: message_data 
+        description: The details of the event in JSON format.
+      - name: event_subtype
+        description: The routine involved in the log, defined [here](https://fivetran.com/docs/logs#logevents).
+      - name: transformation_id
+        description: Foreign key referencing the `transformation` if the event refers to a transformation run.
+
+  - name: stg_fivetran_log__account
+    description: Table of information on this Fivetran account.
+    columns:
+      - name: account_id
+        description: Unique ID of the account.
+        tests:
+          - unique
+          - not_null
+      - name: country
+        description: Country of the account.
+      - name: created_at
+        description: Timestamp of when the account was created.
+      - name: account_name
+        description: Name of the Fivetran account.
+      - name: status
+        description: Status of the Fivetran account (ie trial, frozen).
+
+  - name: stg_fivetran_log__account_membership
+    description: Table of the users given access to this account.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - account_id
+            - user_id
+    columns:
+      - name: account_id
+        description: Foreign key referencing the ID of the `account` that the user belongs to.
+      - name: user_id
+        description: Foreign key referencing the ID of the `user` belonging to the account.
+      - name: activated_at
+        description: Timestamp of when the user was activated in the account.
+      - name: joined_at 
+        description: Timestamp when the user joined the account.
+      - name: account_role
+        description: The user's permissions for this account.
+
+  - name: stg_fivetran_log__destination_membership
+    description: Table of the users given access to this destination.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - destination_id
+            - user_id
+    columns:
+      - name: destination_id
+        description: Foreign key referencing the ID of the `destination` that the user is  amember of.
+      - name: user_id
+        description: Foreign key referencing the ID of the `user` belonging to the destination.
+      - name: activated_at
+        description: Timestamp of when the user was activated in the destination.
+      - name: joined_at 
+        description: Timestamp when the user was added to the destination.
+      - name: destination_role
+        description: The user's permissions for this individual destination.
+      
+  - name: stg_fivetran_log__transformation
+    description: > 
+      Table of [transformations](https://fivetran.com/docs/transformations) made and carried out in Fivetran.
+      Note - this table is only created once you have created a transformation for the destination.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - transformation_id
+            - destination_id
+    columns:
+      - name: transformation_id
+        description: Destination-unique ID of the transformation.
+      - name: created_at
+        description: Timestamp of when the transformation was created.
+      - name: created_by_user_id
+        description: Foreign key referencing the `user` who created the transformation.
+      - name: destination_id
+        description: Foreign key referenencing the `destination` whose data is being transformed.
+      - name: transformation_name
+        description: Name given to the transformation.
+      - name: is_paused
+        description: Boolean of whether the data transformation is currently paused.
+      - name: script
+        description: The code content of the transformation.
+      - name: trigger_delay 
+        description: The delay in triggering transformation.
+      - name: trigger_interval
+        description: The scheduled frequency of the transformation, if a time schedule is chosen as its trigger.
+      - name: trigger_type
+        description: The schedule type of the transformation (time schedule vs. new data in certain tables).
+
+  - name: stg_fivetran_log__trigger_table
+    description: >
+      Table relating transformations to the connector source tables that trigger them. 
+      Transformations on time schedules do not appear here. Note - this table is only created 
+      once you have created a triggered transformation.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - trigger_table
+            - transformation_id
+    columns:
+      - name: trigger_table
+        description: Connector source table whose new data triggers the transformation.
+      - name: transformation_id
+        description: Foreign key referencing the `transformation` that is triggered by new data.
+
+  - name: stg_fivetran_log__user
+    description: Table of users given access to this Fivetran account.
+    columns:
+      - name: user_id
+        description: Unique ID of the user's account
+        tests:
+          - unique
+          - not_null
+      - name: created_at
+        description: Timestamp of when the user was created.
+      - name: email
+        description: Email associated with the user.
+      - name: has_disabled_email_notifications
+        description: Boolean of whether they have disabled all email notifications.
+      - name: last_name
+        description: User's last name.
+      - name: first_name
+        description: User's first name.
+      - name: phone
+        description: Phone number associated with user.
+      - name: is_verified
+        description: Boolean that indicates whether the user has verified their email address in the account creation process.

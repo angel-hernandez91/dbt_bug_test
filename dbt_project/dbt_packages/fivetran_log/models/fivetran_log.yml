@@ -1,0 +1,320 @@
+version: 2
+
+models:
+
+  - name: fivetran_log__connector_status
+    description: > 
+      Table of each destination's connector and details surrounding its 
+      connection and data-sync status.
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - connector_id
+            - destination_id     
+    columns:
+
+      - name: connector_id
+        description: System generated unique ID of the connector.
+
+      - name: connector_name
+        description: Name of the connector.
+
+      - name: connector_type
+        description: The kind of connector (ie google sheets, webhooks).
+
+      - name: destination_id
+        description: >
+          Foreign key referencing the `destination` warehouse that the connector data is loaded into.
+
+      - name: destination_name
+        description: Name of the destination loading data from this connector.
+
+      - name: connector_health
+        description: Status of the connector's data flow. Can be `"broken"`, `"incomplete"`, `"connected"`, `"paused"`, `"initial sync in progress"`, or `"priority first sync"`.
+
+      - name: last_successful_sync_completed_at
+        description: > 
+          Timestamp of when the last sync attempt was completed. This could be either a failure or a successful sync.
+
+      - name: last_sync_started_at
+        description: > 
+          Timestamp of when the last sync was started. Note that if new data comes in after a sync has 
+          begun, the new data will not be included in this sync.
+
+      - name: last_sync_completed_at
+        description: > 
+          Timestamp of when the last sync was completed.
+          
+      - name: set_up_at
+        description: Timestamp of when the connector was set up.
+
+      - name: number_of_schema_changes_last_month
+        description: > 
+          The number of schema changes (creating tables or schemas and altering tables) in the past 30 days.
+
+      - name: errors_since_last_completed_sync
+        description: >
+          Aggregated line-separated list of error messages (in JSON format) raised synce the last 
+          sync completion. 
+
+      - name: warnings_since_last_completed_sync
+        description: >
+          Aggregated line-separated list of warning messages (in JSON format) raised synce the last 
+          sync completion. 
+
+    
+  - name: fivetran_log__mar_table_history
+    description: > 
+      Table of each table's monthly active rows (MAR) for all connectors and destinations, per month.
+      Read more about how monthly active rows are defined and calculated 
+      [here](https://fivetran.com/docs/getting-started/consumption-based-pricing).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - connector_id
+            - destination_id  
+            - table_name
+            - measured_month
+    columns:
+
+      - name: connector_name
+        description: Name of the connector loading this table.
+
+      - name: connector_id
+        description: System-generated uniqu ID of the connector loading this table.
+
+      - name: schema_name
+        description: Name of the schema in which the table lives.
+        
+      - name: table_name
+        description: Name of the table whose MAR was measured.
+
+      - name: destination_id
+        description: >
+          Foreign key referencing the `destination` warehouse that the connector data is loaded into.
+
+      - name: measured_month
+        description: The month (yyyy-mm-01) of the measurement.
+
+      - name: last_measured_at
+        description: Timestamp of when the last MAR measurement for the month was made.
+
+      - name: monthly_active_rows
+        description: The number of active rows measured in the table for the month.
+      
+      - name: connector_type
+        description: The kind of connector (ie google sheets, webhooks).
+        
+      - name: destination_name 
+        description: Name of the destination as it appears in the UI.
+
+
+  - name: fivetran_log__usage_mar_destination_history
+    description: >
+      Table of each destination's usage and active volume, per month. Includes the 
+      usage per million MAR and MAR per usage. Usage either refers to a dollar or credit amount, depending on customer's pricing model.
+      Read more about the relationship between usage and MAR [here](https://www.fivetran.com/legal/service-consumption-table).
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - destination_id
+            - measured_month 
+
+    columns:
+      - name: measured_month
+        description: The month (yyyy-mm-01) of the usage/MAR measurement.
+
+      - name: destination_id
+        description: >
+          Foreign key referencing the `destination` warehouse housing the active rows.
+
+      - name: destination_name
+        description: Name of the destination as it appears in the UI.
+
+      - name: consumption
+        description: The number of credits or dollar amount used by the destination for the given month.
+
+      - name: monthly_active_rows
+        description: The number of total active rows measured in the destination for the month.
+
+      - name: credits_spent_per_million_mar
+        description: The ratio of credits spent that month per every million active rows synced.
+
+      - name: mar_per_credit_spent
+        description: The ratio of the month's active volume to credits spent.
+
+      - name: amount_spent_per_million_mar
+        description: The ratio of amount spent that month per every million active rows synced.
+
+      - name: mar_per_amount_spent
+        description: The ratio of the month's active volume to amount spent.
+
+
+  - name: fivetran_log__transformation_status
+    description: >
+      Table of transformations enriched with data regarding its run status and any tables 
+      whose new data trigger the transformation to run.
+    
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - destination_id
+            - transformation_id 
+
+    columns:
+      - name: transformation_id
+        description: Unique ID of the transformation.
+
+      - name: created_at
+        description: Timestamp of when the transformation was created.
+
+      - name: created_by_user_id
+        description: Foreign key referencing the `user` who created the transformation.
+
+      - name: destination_id
+        description: Foreign key referenencing the `destination` whose data is being transformed.
+
+      - name: transformation_name
+        description: Name given to the transformation.
+
+      - name: is_paused
+        description: Boolean of whether the data transformation is currently paused.
+
+      - name: script
+        description: The code content of the transformation.
+
+      - name: trigger_delay 
+        description: The delay in triggering transformation.
+
+      - name: trigger_interval
+        description: The scheduled frequency of the transformation, if a time schedule is chosen as its trigger.
+
+      - name: trigger_type
+        description: The schedule type of the transformation (time schedule vs. new data in certain tables).
+      
+      - name: destination_name
+        description: Name of the destination in which the destination is run.
+      
+      - name: last_successful_run_at
+        description: Timestamp of when the transformation was last run successfully.
+      
+      - name: last_run_attempt
+        description: Outcome of the last run attempt (`"success"` or `"failure"`).
+      
+      - name: trigger_tables
+        description: >
+          Aggregated string list of the tables that trigger the transformation to run, if it is
+          not on a time schedule.
+
+  - name: fivetran_log__connector_daily_events
+    description: >
+      Table of each connector's daily history of the quantity of api calls, schema changes, and records modified,
+      starting at the connector's setup date. 
+    
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - connector_id
+            - destination_id 
+            - date_day
+
+    columns:
+      - name: connector_id
+        description: System generated unique ID of the connector.
+
+      - name: connector_name
+        description: Name of the connector.
+
+      - name: connector_type
+        description: The kind of connector (ie google sheets, webhooks).
+
+      - name: destination_id
+        description: >
+          Foreign key referencing the `destination` warehouse that the connector data is loaded into.
+
+      - name: destination_name
+        description: Name of the destination loading data from this connector.
+
+      - name: date_day
+        description: Date on which the number of api calls for the connector is measured.
+
+      - name: count_api_calls
+        description: The number of api call events logged for this connector on this day.
+
+      - name: count_record_modifications
+        description: The sum of all records modified (includes updates, inserts, and deletes).
+
+      - name: count_schema_changes
+        description: The number of schema change events for this connector. 
+
+  - name: fivetran_log__audit_table
+    description: >
+      Table replacing the deprecated `fivetran_audit` table. For each table written to in a sync,
+      captures timestamps and row quantities around table syncs. Each record represents a table being
+      written to in a connector sync. Note: the quantities here will not match the deprecated `fivetran_audit`
+      table completely, as `fivetran_audit` reported on pre-duplicated data loads.
+    columns:
+      - name: unique_table_sync_key
+        description: Primary key of this table, hashed on `connector_id`, `destination_id`, `table_name`, and `unique_table_sync_key`.
+        tests:
+          - unique
+          - not_null
+      - name: connector_id
+        description: System generated unique ID of the connector.
+      - name: connector_name
+        description: Name of the connector.
+      - name: table_name
+        description: Name of the table being written to. 
+      - name: destination_id
+        description: >
+          Foreign key referencing the `destination` warehouse that the connector data is loaded into.
+      - name: destination_name
+        description: Name of the destination that the table is being written to. 
+      - name: write_to_table_start
+        description: Timestamp of when Fivetran began to write to this table.
+      - name: write_to_table_end
+        description: Timestamp of when Fivetran finished writing to this table.
+      - name: sync_start
+        description: Timestamp of when this connector-level sync began. 
+      - name: sync_end
+        description: Timestamp of when this connector-level sync finished, if successful. 
+      - name: sum_rows_replaced_or_inserted
+        description: Sum of the rows replaced or inserted into this table during a sync. 
+      - name: sum_rows_updated
+        description: Sum of the rows updated in this table during a sync.
+      - name: sum_rows_deleted
+        description: Sum of the rows deleted from this table during a sync.
+
+  - name: fivetran_log__schema_changelog
+    description: >
+      Table capturing information around each kind of schema change made to a connector.
+      Schema changes include altering and creating tables, changing the schema configuration, and creating schemas. 
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+            - connector_id
+            - destination_id
+            - message_data
+            - created_at
+    columns:
+      - name: connector_id
+        description: System generated unique ID of the connector.
+      - name: connector_name
+        description: Name of the connector whose schema was changed. 
+      - name: destination_id
+        description: >
+          Foreign key referencing the `destination` warehouse that the connector data is loaded into.
+      - name: destination_name
+        description: Name of the destination that the table is being written to. 
+      - name: created_at
+        description: Timestamp of when the schema was changed. 
+      - name: event_subtype
+        description: Type of schema change event. One of 'alter_table', 'create_table', 'change_schema_config', 'create_schema'.
+      - name: message_data
+        description: The details of the event in JSON format.
+      - name: table_name
+        description: Name of the table, if a table is being altered or created. 
+      - name: schema_name
+        description: Name of the schema, if a schema or table is being created. 

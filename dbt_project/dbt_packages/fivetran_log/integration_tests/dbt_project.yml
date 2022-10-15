@@ -1,0 +1,79 @@
+name: 'fivetran_log_integration_tests'
+version: '0.6.3'
+config-version: 2
+profile: 'integration_tests'
+
+dispatch:
+  - macro_namespace: dbt_utils
+    search_order: ['spark_utils', 'dbt_utils']
+
+vars:
+  fivetran_log:
+
+    fivetran_log_schema: fivetrans_logs_integration_tests
+    fivetran_log_account_identifier: "account"
+    fivetran_log_account_membership_identifier: "account_membership"
+    fivetran_log_active_volume_identifier: "active_volume"
+    fivetran_log_connector_identifier: "connector"
+    fivetran_log_credits_used_identifier: "credits_used"
+    fivetran_log_usage_cost_identifier: "usage_cost"
+    fivetran_log_destination_identifier: "destination"
+    fivetran_log_destination_membership_identifier: "destination_membership"
+    fivetran_log_log_identifier: "log"
+    fivetran_log_transformation_identifier: "transformation"
+    trigger_table: "{{ fivetran_utils.snowflake_seed_data('trigger_table') }}"
+    fivetran_log_user_identifier: "user"
+
+
+models:
+  fivetran_log:
+    +schema: fivetran_log
+
+seeds:
+  fivetran_log_integration_tests:
+    +column_types:
+      _fivetran_synced: timestamp
+    account:
+      +column_types:
+        created_at: timestamp
+    account_membership:
+      +column_types:
+        activated_at: timestamp
+        joined_at: timestamp
+    active_volume:
+      +column_types:
+        measured_at: timestamp
+        monthly_active_rows: "{{ 'int64' if target.type == 'bigquery' else 'bigint' }}"
+    connector:
+      +column_types:
+        signed_up: timestamp
+    credits_used:
+      +column_types:
+        credits_consumed: "{{ 'int64' if target.type == 'bigquery' else 'bigint' }}"
+    destination:
+      +column_types:
+        created_at: timestamp
+        id: "{{ 'string' if target.type in ('bigquery', 'spark') else 'varchar' }}"
+    destination_membership:
+      +column_types:
+        activated_at: timestamp
+        joined_at: timestamp
+    log:
+      +column_types:
+        time_stamp: timestamp
+        transformation_id:  "{{ 'string' if target.type in ('bigquery', 'spark') else 'varchar' }}"
+    transformation:
+      +column_types:
+        created_at: timestamp
+        destination_id: "{{ 'string' if target.type in ('bigquery', 'spark') else 'varchar' }}"
+        id:  "{{ 'string' if target.type in ('bigquery', 'spark') else 'varchar' }}"
+    trigger_table:
+      +quote_columns: "{{ true if target.type in ('redshift', 'postgres') else false }}"
+      +enabled: "{{ true if target.type != 'snowflake' else false }}"
+      +column_types:
+        transformation_id:  "{{ 'string' if target.type in ('bigquery', 'spark') else 'varchar' }}"
+    trigger_table_snowflake:
+      +enabled: "{{ true if target.type == 'snowflake' else false }}"
+    user:
+      +column_types:
+        created_at: timestamp
